@@ -89,4 +89,10 @@
         <Reference Include="System" />
         <Reference Include="System.Net.Http" />
     </ItemGroup>
+
+    <ItemGroup>
+      <Reference Include="UnityEngine">
+        <HintPath>UnityEngine.dll</HintPath>
+      </Reference>
+    </ItemGroup>
 </Project>

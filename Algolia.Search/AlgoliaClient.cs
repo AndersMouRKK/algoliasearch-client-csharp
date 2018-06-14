@@ -46,18 +46,22 @@ namespace Algolia.Search
 	/// </summary>
 	public class AlgoliaClient
 	{
-		private string[] _readHosts;
-		private string[] _writeHosts;
-		private string _applicationId;
-		private string _apiKey;
-		private HttpClient _searchHttpClient;
-		private HttpClient _buildHttpClient;
-		private HttpMessageHandler _mock;
-		private bool _continueOnCapturedContext;
-		private ArrayUtils<string> _arrayUtils;
-		private Dictionary<string, HostStatus> _readHostsStatus = new Dictionary<string, HostStatus>();
-		private Dictionary<string, HostStatus> _writeHostsStatus = new Dictionary<string, HostStatus>();
-		public int _dsnInternalTimeout = 60 * 5;
+        private HttpMessageHandler _mock;
+        private ArrayUtils<string> _arrayUtils;
+
+        protected HttpClient _searchHttpClient;
+        protected HttpClient _buildHttpClient;
+        protected string _applicationId;
+        protected string _apiKey;
+        protected string[] _readHosts;
+        protected string[] _writeHosts;
+        protected Dictionary<string, HostStatus> _readHostsStatus = new Dictionary<string, HostStatus>();
+        protected Dictionary<string, HostStatus> _writeHostsStatus = new Dictionary<string, HostStatus>();
+        protected bool _continueOnCapturedContext;
+        protected double _searchTimeout = 5;
+        protected double _writeTimeout = 30;
+
+        public int _dsnInternalTimeout = 60 * 5;
 
 		/// <summary>
 		/// Algolia Search initialization
@@ -115,8 +119,8 @@ namespace Algolia.Search
 			SearchHttpClient.DefaultRequestHeaders.Add("User-Agent", "Algolia for Csharp 4.0.0");
 			SearchHttpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
 
-			SearchHttpClient.Timeout = TimeSpan.FromSeconds(5);
-			HttpClient.Timeout = TimeSpan.FromSeconds(30);
+			SearchHttpClient.Timeout = TimeSpan.FromSeconds(_searchTimeout);
+			HttpClient.Timeout = TimeSpan.FromSeconds(_writeTimeout);
 
 			_continueOnCapturedContext = false;
 		}
@@ -190,7 +194,9 @@ namespace Algolia.Search
 		/// </summary>
 		public void setTimeout(double searchTimeout, double writeTimeout)
 		{
-			SearchHttpClient.Timeout = TimeSpan.FromSeconds(searchTimeout);
+            _searchTimeout = searchTimeout;
+            _writeTimeout = writeTimeout;
+            SearchHttpClient.Timeout = TimeSpan.FromSeconds(searchTimeout);
 			HttpClient.Timeout = TimeSpan.FromSeconds(writeTimeout);
 		}
 
@@ -860,8 +866,14 @@ namespace Algolia.Search
 			{
 				if (_searchHttpClient == null)
 				{
-					if (_mock == null)
-						_searchHttpClient = new HttpClient(new HttpClientHandler { AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate });
+                    if (_mock == null)
+                        _searchHttpClient = new HttpClient(new HttpClientHandler {
+                            AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate,
+                            UseProxy = false,
+                        UseCookies = false,
+                        MaxRequestContentBufferSize = 100000000,
+                        MaxAutomaticRedirections = 10000000,
+                        ClientCertificateOptions = ClientCertificateOption.Automatic});
 					else
 						_searchHttpClient = new HttpClient(_mock);
 				}
@@ -884,7 +896,7 @@ namespace Algolia.Search
 		/// <param name="content">The content</param>
 		/// <param name="requestOptions">The additional request options</param>
 		/// <returns></returns>
-		public async Task<JObject> ExecuteRequest(callType type, string method, string requestUrl, object content, CancellationToken token, RequestOptions requestOptions)
+		public virtual async Task<JObject> ExecuteRequest(callType type, string method, string requestUrl, object content, CancellationToken token, RequestOptions requestOptions)
 		{
 			string[] hosts = null;
 			string requestExtraQueryParams = "";
@@ -1053,7 +1065,7 @@ namespace Algolia.Search
 			throw new AlgoliaException("Hosts unreachable: " + string.Join(", ", errors.Select(x => x.Key + "=" + x.Value).ToArray()));
 		}
 
-		private string buildExtraQueryParamsUrlString(Dictionary<string, string> extraQueryParams)
+		protected string buildExtraQueryParamsUrlString(Dictionary<string, string> extraQueryParams)
 		{
 			if (extraQueryParams == null || extraQueryParams.Count == 0)
 			{
